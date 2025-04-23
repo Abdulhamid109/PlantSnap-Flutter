@@ -1,13 +1,15 @@
 import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:infinite_carousel/infinite_carousel.dart';
+import 'package:plantsnap/pages/Aboutpage.dart';
+import 'package:plantsnap/pages/historypage.dart';
 import 'package:plantsnap/pages/identifyPage.dart';
 import 'package:plantsnap/pages/loginpage.dart';
+import 'package:plantsnap/pages/profilepage.dart';
 
 class Homepage extends StatefulWidget {
   final int login;
@@ -22,415 +24,559 @@ class _HomepageState extends State<Homepage> {
   int selectedIndex = 0;
   File? _selectedImage;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  String username = "";
+  static int track = 0;
+
   @override
   void initState() {
     super.initState();
     controller = InfiniteScrollController();
-    print("Current UID: ${_auth.currentUser!.uid}");
-    print("Logged in with :${widget.login}");
     fetchCurrentUser();
   }
 
-  // final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
-
-  //image from gallery
   Future<File?> pickImageFromGallery() async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
       if (image != null) {
-        return File(image.path); // Returns the selected image as a File
+        return File(image.path);
       }
     } catch (e) {
       print("Error picking image from gallery: $e");
     }
-    return null; // Returns null if no image is selected
+    return null;
   }
 
-  //image from camera
   Future<File?> captureImageFromCamera() async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.camera);
       if (image != null) {
-        return File(image.path); // Returns the captured image as a File
+        return File(image.path);
       }
     } catch (e) {
       print("Error capturing image from camera: $e");
     }
-    return null; // Returns null if no image is captured
+    return null;
   }
 
   Future<void> signOut() async {
     if (widget.login == 0) {
-      print("object b");
-      await _auth.signOut().then(
-            (val) => FirebaseAuth.instance.signOut().then(
-                  (val) => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginPage(),
-                    ),
-                  ),
-                ),
-          );
+      await _auth.signOut();
     } else if (widget.login == 1) {
-      print("object n");
-      await _googleSignIn.signOut().then(
-            (val) => FirebaseAuth.instance.signOut().then(
-                  (val) => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginPage(),
-                    ),
-                  ),
-                ),
-          );
+      await _googleSignIn.signOut();
     }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
   }
 
-  String username = "";
-  static int track = 0;
-  //fetch current user
   void fetchCurrentUser() async {
     try {
-      if (widget.login == 0) {
-        track = widget.login;
-        final current = await FirebaseFirestore.instance
-            .collection("user")
-            .doc(_auth.currentUser!.uid)
-            .get();
-        setState(() {
-          username = current["email"];
-        });
-      } else if (widget.login == 1) {
-        track = widget.login;
-        final current = await FirebaseFirestore.instance
-            .collection("G-User")
-            .doc(_auth.currentUser!.uid)
-            .get();
-        setState(() {
-          username = current["email"];
-        });
+      final user = _auth.currentUser;
+      if (user != null) {
+        if (widget.login == 0) {
+          // Regular email login
+          final current = await FirebaseFirestore.instance
+              .collection("user")
+              .doc(user.uid)
+              .get();
+          setState(() {
+            username = current["email"] ?? "";
+            track = widget.login;
+          });
+        } else {
+          // Google login
+          final current = await FirebaseFirestore.instance
+              .collection("G-User")
+              .doc(user.uid)
+              .get();
+          setState(() {
+            username = current["email"] ?? user.email ?? "";
+            track = widget.login;
+          });
+        }
       }
     } catch (e) {
-      print(e.toString());
+      print("Error fetching user: ${e.toString()}");
+      // Fallback to Firebase Auth email if Firestore fetch fails
+      final user = _auth.currentUser;
+      if (user != null) {
+        setState(() {
+          username = user.email ?? "";
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    double height = MediaQuery.of(context).size.height * 1;
-    double width = MediaQuery.of(context).size.width * 1;
-    return SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            "PlantSnap",
-            style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color.fromARGB(255, 11, 77, 175),
-                shadows: [
-                  Shadow(
-                      color: Colors.white, offset: Offset(2, 2), blurRadius: 15)
-                ]),
+    final user = _auth.currentUser;
+    return Scaffold(
+      key: _scaffoldKey,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'PlantSnap',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
           ),
-          elevation: 5,
-          backgroundColor: Colors.green,
-          actions: const [
-            Padding(
-              padding: EdgeInsets.all(10.0),
-              child: Text(
-                "About Us",
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w300,
-                  color: Color.fromARGB(255, 0, 3, 7),
-                ),
-              ),
-            )
-          ],
         ),
-        body: SingleChildScrollView(
-          scrollDirection: Axis.vertical,
-          child: Container(
-            height: height * 1,
-            width: width * 1,
-            decoration: const BoxDecoration(
-                image: DecorationImage(
-                    image: NetworkImage(
-                        "https://imgs.search.brave.com/_c3DECpGo1V0q3ZQdHsHhoTYfOQhgunuOTyJn-fhiIE/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93YWxs/cGFwZXJhY2Nlc3Mu/Y29tL2Z1bGwvNDU4/Njg4OS5qcGc"),
-                    fit: BoxFit.cover)),
-            child: Padding(
-              padding: const EdgeInsets.all(18.0),
-              child: Column(
-                children: <Widget>[
-                  const SizedBox(
-                    height: 5,
-                  ),
-                  const Text(
-                    "Welcome to the World of Plants with AI",
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color.fromARGB(255, 8, 8, 8),
-                        shadows: [
-                          BoxShadow(
-                              offset: Offset(2, 2),
-                              blurRadius: 20,
-                              spreadRadius: 10)
-                        ]),
-                  ),
-                  // buttons
-                  const SizedBox(
-                    height: 25,
-                  ),
-                  ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        shape: BeveledRectangleBorder(
-                            borderRadius: BorderRadius.circular(5)),
-                        shadowColor: Colors.black,
-                        backgroundColor: Colors.green,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                );
+              },
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('user')
+                    .doc(FirebaseAuth.instance.currentUser?.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData && snapshot.data?.data() != null) {
+                    final userData = snapshot.data?.data() as Map<String, dynamic>;
+                    final photoUrl = userData['photoUrl'] as String?;
+                    
+                    return Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
                       ),
-                      onPressed: () async {
-                        final image = await pickImageFromGallery();
-                        if (image != null) {
-                          setState(() {
-                            _selectedImage = image;
-                          });
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => Identifypage(selectedImage: _selectedImage,),));
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.grey[300],
+                        backgroundImage: photoUrl != null
+                            ? NetworkImage(photoUrl)
+                            : null,
+                        child: photoUrl == null
+                            ? const Icon(
+                                Icons.person,
+                                color: Colors.white,
+                                size: 24,
+                              )
+                            : null,
+                      ),
+                    );
+                  }
+                  return Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 2,
+                      ),
+                    ),
+                    child: const CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.grey,
+                      child: Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.green.shade400,
+                Colors.green.shade800,
+              ],
+            ),
+          ),
+        ),
+      ),
+      drawer: Drawer(
+        child: Column(
+          children: [
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('user')
+                  .doc(user?.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                final userData = snapshot.data?.data() as Map<String, dynamic>?;
+                final photoUrl = user?.photoURL;
+                final userName = userData?['name'] ?? user?.displayName ?? 'User';
+                final email = userData?['email'] ?? user?.email ?? '';
 
-                        }
-                      },
-                      child: const Text(
-                        "Upload",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.white),
-                      )),
-                  const SizedBox(
-                    height: 8,
-                  ),
-                  ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          shape: BeveledRectangleBorder(
-                              borderRadius: BorderRadius.circular(5)),
-                          shadowColor: Colors.black,
-                          backgroundColor: Colors.green),
-                      onPressed: () async{
-                        final image = await captureImageFromCamera();
-                        if (image != null) {
-                          setState(() {
-                            _selectedImage = image;
-                          });
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => Identifypage(selectedImage: _selectedImage,),));
-                        }
-                      },
-                      child: const Text(
-                        "Capture",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.white),
-                      )),
-                  const SizedBox(
-                    height: 30,
-                  ),
-                  //plant images carousel
-
-                  const ListTile(
-                    title: Text(
-                      "The clearest way into the Universe is through a forest wilderness.",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.shade400,
+                        Colors.green.shade800,
+                      ],
                     ),
-                    subtitle: Text("— John Muir",
-                        style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w300)),
                   ),
-                  const SizedBox(
-                    height: 5,
-                  ),
-                  const ListTile(
-                    title: Text(
-                      "A society grows great when old men plant trees whose shade they know they shall never sit in.",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  child: UserAccountsDrawerHeader(
+                    margin: EdgeInsets.zero,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
                     ),
-                    subtitle: Text("— Greek Proverb",
-                        style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w300)),
-                  ),
-                  const SizedBox(
-                    height: 5,
-                  ),
-                  const ListTile(
-                    title: Text(
-                      "A society grows great when old men plant trees whose shade they know they shall never sit in.",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    accountName: Text(
+                      userName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                    subtitle: Text("— Greek Proverb",
-                        style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w300)),
+                    accountEmail: Text(
+                      email,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    currentAccountPicture: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 8,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        backgroundColor: Colors.white,
+                        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                        child: photoUrl == null
+                            ? const Icon(
+                                Icons.person,
+                                size: 40,
+                                color: Colors.green,
+                              )
+                            : null,
+                      ),
+                    ),
+                    otherAccountsPictures: [
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.edit,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProfilePage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  const SizedBox(height: 20),
+                  _buildDrawerItem(
+                    icon: Icons.home,
+                    title: 'Home',
+                    onTap: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.history,
+                    title: 'History',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const HistoryPage()),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.info_outline,
+                    title: 'About',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AboutPage()),
+                      );
+                    },
                   ),
                 ],
               ),
             ),
+            const Divider(height: 1),
+            _buildDrawerItem(
+              icon: Icons.logout,
+              title: 'Logout',
+              isDestructive: true,
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    title: const Text('Confirm Logout'),
+                    content: const Text('Are you sure you want to logout?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          signOut();
+                        },
+                        child: const Text(
+                          'Logout',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: NetworkImage(
+              "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
+            ),
+            fit: BoxFit.cover,
           ),
         ),
-        drawer: Drawer(
-          backgroundColor: Colors.greenAccent,
+        child: SafeArea(
           child: Column(
             children: [
+              const SizedBox(height: 20),
               Container(
-                height: height * 0.3,
-                decoration: const BoxDecoration(
-                    image: DecorationImage(
-                        image: AssetImage("images/logo.png"),
-                        fit: BoxFit.cover)),
-              ),
-              const SizedBox(
-                height: 10,
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.home,
-                  size: 30,
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      spreadRadius: 5,
+                    ),
+                  ],
                 ),
-                title: const Text(
-                  "Home",
-                  style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black,
-                          offset: Offset(1, 1),
-                          blurRadius: 10,
-                        )
-                      ]),
-                ),
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => Homepage(
-                        login: widget.login,
-                      ),
-                    )),
-              ),
-              const ListTile(
-                leading: Icon(
-                  Icons.info,
-                  size: 30,
-                ),
-                title: Text(
-                  "About Us",
-                  style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black,
-                          offset: Offset(1, 1),
-                          blurRadius: 10,
-                        )
-                      ]),
-                ),
-              ),
-              const ListTile(
-                leading: Icon(
-                  Icons.history,
-                  size: 30,
-                ),
-                title: Text(
-                  "History",
-                  style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black,
-                          offset: Offset(1, 1),
-                          blurRadius: 10,
-                        )
-                      ]),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.logout,
-                  size: 30,
-                ),
-                title: const Text(
-                  "Logout",
-                  style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black,
-                          offset: Offset(1, 1),
-                          blurRadius: 10,
-                        )
-                      ]),
-                ),
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return AlertDialog(
-                        title: const Center(
-                          child: Text("Are you Sure you want to Logout?"),
-                        ),
-                        actions: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: <Widget>[
-                              TextButton(
-                                  onPressed: () => signOut(),
-                                  child: const Text("Yes")),
-                              TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text("No"))
-                            ],
-                          )
-                        ],
-                      );
-                    },
-                  );
-                },
-              ),
-              SizedBox(
-                height: height * 0.176,
-              ),
-              Container(
-                height: 100,
-                child: Center(
-                  child: Text(
-                    username != "" ? username : "tony Stark",
-                    style: const TextStyle(
-                        fontSize: 21,
+                child: Column(
+                  children: [
+                    Text(
+                      "Welcome, ${username.split('@')[0]}!",
+                      style: const TextStyle(
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black,
-                            offset: Offset(1, 1),
-                            blurRadius: 10,
-                          )
-                        ]),
-                  ),
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      "Discover the World of Plants with AI",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
-                color: Colors.green.shade700,
               ),
+              const Spacer(),
+              Container(
+                margin: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      "Identify Plants",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildActionButton(
+                          icon: Icons.photo_library,
+                          label: "Gallery",
+                          onTap: () async {
+                            final image = await pickImageFromGallery();
+                            if (image != null) {
+                              setState(() => _selectedImage = image);
+                              if (mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        IdentifyPage(image: _selectedImage!),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        _buildActionButton(
+                          icon: Icons.camera_alt,
+                          label: "Camera",
+                          onTap: () async {
+                            final image = await captureImageFromCamera();
+                            if (image != null) {
+                              setState(() => _selectedImage = image);
+                              if (mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        IdentifyPage(image: _selectedImage!),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+        decoration: BoxDecoration(
+          color: Colors.green,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.white, size: 30),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isDestructive ? Colors.red : Colors.green,
+        size: 26,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: isDestructive ? Colors.red : Colors.black87,
+        ),
+      ),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      tileColor: Colors.transparent,
+      hoverColor: Colors.green.withOpacity(0.1),
     );
   }
 }
