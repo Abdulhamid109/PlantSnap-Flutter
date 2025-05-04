@@ -132,7 +132,7 @@ class _IdentifyPageState extends State<IdentifyPage> {
         showMoreButton = false;
       });
 
-      final url = Uri.parse('https://plant-api-abd-production.up.railway.app/predict/');
+      final url = Uri.parse('https://plant-id-api-prod.onrender.com/identify');
       final request = http.MultipartRequest('POST', url);
 
       request.files.add(
@@ -153,11 +153,12 @@ class _IdentifyPageState extends State<IdentifyPage> {
         print('Response: $jsonResponse'); // Debug print
 
         setState(() {
-          responseText = jsonResponse['predicted_class'] ?? "No Data found";
+          responseText = jsonResponse['plant_name'] ?? "No Data found";
           predictions = [
             {
-              'class': jsonResponse['predicted_class'],
+              'class': jsonResponse['plant_name'],
               'confidence': jsonResponse['confidence'] ?? 1.0,
+              'confidence_level': jsonResponse['confidence_level']
             }
           ];
           isLoading = false;
